@@ -26,6 +26,11 @@ class BacktestResult:
     fills: list[dict]
     books: dict[str, VirtualBook]
     broker_positions: dict[str, Position]
+    open_risk: float
+    open_risk_cap: float
+    gross: float
+    equity: float
+    stops: dict[str, dict[str, float]]
 
 
 async def run_backtest(config: Config, source: object, bots: list[Strategy]) -> BacktestResult:
@@ -52,4 +57,9 @@ async def run_backtest(config: Config, source: object, bots: list[Strategy]) -> 
         fills=fills,
         books=engine.books,
         broker_positions=broker.positions(),
+        open_risk=engine.current_open_risk(),
+        open_risk_cap=risk.effective_open_risk_cap(broker.equity()),
+        gross=broker.gross(),
+        equity=broker.equity(),
+        stops=engine._stops,
     )
