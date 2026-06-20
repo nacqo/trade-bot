@@ -127,16 +127,22 @@ allocator (`allocator/`) sets capital + aggressiveness → risk admission (`risk
 
 ## Status
 
-v1 core + reality bridge are complete on branch `build/v1` (~98 tests passing): all four active
-bots, the meta-allocator, the full risk overlay, honest volume-capped fills, the backtest +
-out-of-sample harness, real Alpaca historical backtest, and a live streaming loop.
+v1 is complete on branch `build/v1` (99 tests passing): four active bots, the meta-allocator, the
+full risk overlay, honest volume-capped fills, the backtest + out-of-sample harness, real Alpaca
+historical backtest, and a live streaming loop.
 
-**Not yet done:**
-- **Validation on real data.** The system has never run against a real Alpaca account. The central
-  bet — does allocating to recent winners beat equal-weight *out-of-sample* — is untested on real
-  returns. This is the most important next step (needs an API key).
-- Deferred by design: futures + activating bot 5 (Phase F), dynamic market-impact slippage,
-  confidence-gated minimum order sizing.
+**Backtested on real data** (≈3 months, 2 stat-arb pairs, 102k 1-minute bars). **Verdict: the
+system is sound — not a profit engine.** Risk controls held in every regime (drawdown 2–4%, never
+breached; leverage capped; stops enforced), the allocator behaves correctly (defaults to
+≈equal-weight under noise, differentiates when a real performer emerges). But the **baseline
+strategies show no reliable edge** — a single-pair positive result did not survive a second pair —
+and tuning them to look profitable would be overfitting. **Do not deploy expecting profit.** Full
+write-up: [`docs/superpowers/BACKTEST_FINDINGS.md`](docs/superpowers/BACKTEST_FINDINGS.md).
+
+**Next — research, not more backtest tuning:** better signals/strategies; a paper soak (validates
+live execution + the order-flow bot, which needs quote data); walk-forward across many names/years
+before trusting any allocator edge. Deferred by design: futures + activating bot 5 (Phase F),
+dynamic market-impact slippage, confidence-gated minimum order sizing.
 
 Deeper docs: `docs/superpowers/HANDOFF.md` (state + decisions + how-to), the design spec and
 pre-mortem in `docs/superpowers/specs/`, and the implementation plan in `docs/superpowers/plans/`.

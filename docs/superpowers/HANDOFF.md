@@ -12,7 +12,12 @@ whichever bot earned the most (risk-adjusted) recently gets more capital **and**
 architecture live-ready. The user (Nacho) drove the design over many iterations; Jaime is a
 collaborator referenced in chat logs.
 
-## Status: v1 core + reality bridge + cointegration gate + sleeve sizing + live loop. 96 tests green.
+## Status: v1 complete + backtested on real data. System sound, no strategy edge. 99 tests green.
+
+Backtested on real Alpaca data (2 pairs, 3 months): risk controls hold every regime, allocator
+behaves correctly, but baseline strategies show no reliable edge — tuning further = overfitting.
+See `docs/superpowers/BACKTEST_FINDINGS.md`. Verdict: ready as sound infrastructure, NOT a profit
+engine; do not deploy expecting profit. Real-data harness: `scripts/eval.py` (caches to data/).
 
 Branch `build/v1` (not merged). Python **3.14** in `.venv`. Run tests: `.venv/bin/python -m pytest -q`.
 Direct CLI run needs `PYTHONPATH=src` (pytest sets it via pyproject).

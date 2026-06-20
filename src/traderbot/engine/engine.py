@@ -220,6 +220,14 @@ class Engine:
                 if t.stop_price is None:
                     continue  # risk: no stop → reject
                 scaled = t.qty * scale
+                cur = self.books[bot.id].positions.get(t.symbol)
+                cur_qty = cur.qty if cur else 0.0
+                # deadband: hold an existing position through tiny size drift (kills per-bar churn
+                # from equity-driven sleeve re-sizing); always act on flips/new entries/exits.
+                if cur_qty != 0 and (cur_qty > 0) == (scaled > 0) and abs(scaled - cur_qty) <= (
+                    self.config.execution.rebalance_deadband * abs(cur_qty)
+                ):
+                    continue
                 new_risk = abs(scaled) * abs(price - t.stop_price)
                 without = self.current_open_risk() - self._contrib(bot.id, t.symbol)
                 if without + new_risk <= cap + 1e-9:

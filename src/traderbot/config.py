@@ -35,6 +35,7 @@ class ExecutionCfg(BaseModel):
     participation_cap: float = 0.05  # ≤5% of candle volume per fill ("speed limit")
     revalidate_on_carry: bool = True  # re-check entry signal before each carried slice
     slippage_bps: float = 1.0
+    rebalance_deadband: float = 0.10  # don't re-trade a position for size drifts < this fraction
 
 
 class DataCfg(BaseModel):
