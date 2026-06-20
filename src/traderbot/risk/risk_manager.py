@@ -112,6 +112,9 @@ class RiskManager:
     def halt(self) -> None:
         self._halted = True
 
+    def resume(self) -> None:
+        self._halted = False
+
     @property
     def halted(self) -> bool:
         return self._halted

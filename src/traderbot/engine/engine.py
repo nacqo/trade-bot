@@ -57,6 +57,7 @@ class Engine:
         self._prev_equity: dict[str, float] = {b.id: 0.0 for b in self.bots}
         self._last_rebalance_ts = None
         self._now = None
+        self._session_date = None
         self._suspended: set[str] = set()
         self._peak_equity = config.starting_equity
         self._bot_peak: dict[str, float] = {}
@@ -81,6 +82,15 @@ class Engine:
     async def _dispatch(self, event) -> None:
         if isinstance(event, Bar):
             self._now = event.ts
+            session = event.ts.date()
+            if self._session_date is not None and session != self._session_date:
+                # new session: reset intraday risk state (suspensions/halt are per-session)
+                self._suspended.clear()
+                self._bot_peak.clear()
+                self._peak_equity = self.broker.equity()
+                if self.risk is not None:
+                    self.risk.resume()
+            self._session_date = session
             self._prices[event.symbol] = event.close
             self.broker.set_mark(event.symbol, event.close)
             for book in self.books.values():
