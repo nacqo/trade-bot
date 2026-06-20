@@ -219,8 +219,13 @@ class Engine:
                     stops[t.symbol] = t.stop_price
             if kept:
                 bot_targets[bot.id] = kept
-        if bot_targets:
-            fills = await self.oms.execute(bot_targets, bar, equity, self.books)
+        # Re-validation: a carried entry is only still valid if the bots still want this symbol.
+        net_desired = sum(t.qty for ts in bot_targets.values() for t in ts if t.symbol == bar.symbol)
+        still_valid = {bar.symbol: (lambda nd=net_desired: nd != 0)}
+        if bot_targets or bar.symbol in self.oms.pending:
+            fills = await self.oms.execute(
+                bot_targets, bar, equity, self.books, still_valid=still_valid
+            )
             for fill in fills:
                 await self.store.record_fill(fill)
 
