@@ -57,9 +57,53 @@ v1 is **ready as infrastructure**: a sound, safe, tested, deterministic multi-st
 working meta-allocator and real risk controls. It is **not** a money-making strategy and must not be
 deployed expecting profit.
 
-Real next steps are **research, not more backtest tuning**:
+Real next steps are **research, not more backtest tuning** (done below):
 - Better signals / features / strategy design (the actual source of edge).
 - A **paper soak** to validate live execution + microstructure (especially the order-flow bot, which
   can't be backtested on bars).
 - Walk-forward across **many** names and **years** before trusting any allocator edge — keep `τ` high
   (near equal-weight) until an edge is demonstrably real out-of-sample.
+
+---
+
+# Signal Research — a real edge found (2026-06-20)
+
+Proper cross-sectional research: 44 liquid names, **daily** bars, 2021-06 → 2026-06 (1265 days).
+For each candidate signal: rank Information Coefficient (signal vs forward return, daily
+cross-section) with an in-sample/out-of-sample split, plus a long-top / short-bottom decile
+backtest. Harness: `scripts/signals.py`. This is research (does X predict returns?), not tuning.
+
+| signal | IC t-stat (h=5) | IS→OOS IC | L/S Sharpe (IS/OOS) | verdict |
+|---|---|---|---|---|
+| rev_1d, rev_5d | <1 | sign **flips** | negative | dead |
+| mom_3_1 | ~1 | mixed | ~0 | dead |
+| mom_6_1 | 1.9 | stable + | +0.31 (0.13/0.59) | weak-positive |
+| **mom_12_1** | **3.7** | **+0.033 / +0.033** | **+0.49 (0.13/1.00)** | **real** |
+| **mom_12_1 vol-scaled** | **4.3** | **+0.039 / +0.030** | **+0.75 (0.64/0.91)** | **best** |
+| lowvol_21d | −2.0 | unstable magnitude | negative | no |
+
+**Finding:** cross-sectional **momentum** (12-1, skip the last month) is the one price-based signal
+that is statistically significant *and* out-of-sample stable. Short-term reversal and low-vol fail
+OOS. **Vol-scaling** momentum (divide by trailing return volatility, so you don't overload high-vol
+names) improves it materially — t=4.3, L/S Sharpe +0.75, IS≈OOS. (Other signal families — earnings
+drift, options flow, news/sentiment — need data the bars API doesn't provide; out of scope here.)
+
+**Implementation:** `strategies/momentum.py` `CrossSectionalMomentumBot` — vol-scaled 12-1 momentum,
+long top quintile / short bottom quintile, **equal-dollar** legs, wide 15% stops, rotates names as
+they leave the deciles. Run through the **full system** (stops + sleeve sizing + risk overlay +
+participation-capped fills + slippage) over 5 years / 44 names:
+
+```
+system momentum bot: daily Sharpe +0.55   max_drawdown 1.3%   turnover 4.0×
+```
+
+It captures most of the gross factor (+0.75 → +0.55 after frictions; momentum is slow so costs are
+small) with very controlled risk.
+
+## Updated verdict
+
+v1 now ships a **validated edge** (vol-scaled cross-sectional momentum, Sharpe ~+0.55 through the
+full system, OOS-validated) **plus a reusable signal-research harness**. The intraday textbook bots
+remain edgeless — keep them for diversification/execution testing, not profit. Before real capital:
+paper-soak, and note the momentum bot is a **daily** factor (run it on daily bars, not the intraday
+loop).

@@ -12,12 +12,16 @@ whichever bot earned the most (risk-adjusted) recently gets more capital **and**
 architecture live-ready. The user (Nacho) drove the design over many iterations; Jaime is a
 collaborator referenced in chat logs.
 
-## Status: v1 complete + backtested on real data. System sound, no strategy edge. 99 tests green.
+## Status: v1 complete + backtested + signal research found a real edge (momentum). 101 tests green.
 
-Backtested on real Alpaca data (2 pairs, 3 months): risk controls hold every regime, allocator
-behaves correctly, but baseline strategies show no reliable edge — tuning further = overfitting.
-See `docs/superpowers/BACKTEST_FINDINGS.md`. Verdict: ready as sound infrastructure, NOT a profit
-engine; do not deploy expecting profit. Real-data harness: `scripts/eval.py` (caches to data/).
+Intraday textbook bots: sound but no edge (don't deploy for profit). **Signal research** (44 names,
+daily, 5yr; `scripts/signals.py`) found **vol-scaled 12-1 momentum** is significant (IC t≈4.3) and
+OOS-stable → implemented as `strategies/momentum.py CrossSectionalMomentumBot`, **daily Sharpe ≈
++0.55 through the full system** (stops/sizing/risk/costs), turnover 4×, dd 1.3%. Reversal/low-vol
+failed OOS. Momentum is a **daily** factor (run on daily bars). Full write-up:
+`docs/superpowers/BACKTEST_FINDINGS.md`. Harnesses: `scripts/eval.py` (intraday), `scripts/signals.py`
+(cross-sectional research). Real Alpaca key in gitignored `.env` (paper). Risk controls validated
+across regimes. Next: paper-soak; more signals need non-price data (fundamentals/options/news).
 
 Branch `build/v1` (not merged). Python **3.14** in `.venv`. Run tests: `.venv/bin/python -m pytest -q`.
 Direct CLI run needs `PYTHONPATH=src` (pytest sets it via pyproject).

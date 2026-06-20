@@ -136,8 +136,14 @@ system is sound — not a profit engine.** Risk controls held in every regime (d
 breached; leverage capped; stops enforced), the allocator behaves correctly (defaults to
 ≈equal-weight under noise, differentiates when a real performer emerges). But the **baseline
 strategies show no reliable edge** — a single-pair positive result did not survive a second pair —
-and tuning them to look profitable would be overfitting. **Do not deploy expecting profit.** Full
-write-up: [`docs/superpowers/BACKTEST_FINDINGS.md`](docs/superpowers/BACKTEST_FINDINGS.md).
+and tuning them to look profitable would be overfitting. **Do not deploy expecting profit.**
+
+**Signal research then found a real edge.** Cross-sectional research (44 names, daily, 5 years)
+showed reversal and low-vol fail out-of-sample, but **vol-scaled 12-1 momentum** is significant
+(IC t≈4.3) and OOS-stable. It's implemented as `CrossSectionalMomentumBot` and captures **daily
+Sharpe ≈ +0.55** through the full system (stops/sizing/risk/costs), turnover 4×, drawdown 1.3%. It's
+a **daily** factor (run on daily bars). Full write-up + harness (`scripts/signals.py`):
+[`docs/superpowers/BACKTEST_FINDINGS.md`](docs/superpowers/BACKTEST_FINDINGS.md).
 
 **Next — research, not more backtest tuning:** better signals/strategies; a paper soak (validates
 live execution + the order-flow bot, which needs quote data); walk-forward across many names/years
