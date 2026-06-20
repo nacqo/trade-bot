@@ -29,6 +29,8 @@ class StatArbBot(Strategy):
         z_stop: float = 3.5,
         lookback: int = 120,
         unit: float = 1.0,
+        coint_pvalue: float = 0.05,
+        refit_every: int = 390,
     ) -> None:
         symbols = sorted({s for pair in pairs for s in pair})
         super().__init__(id, symbols)
@@ -38,16 +40,51 @@ class StatArbBot(Strategy):
         self.z_stop = z_stop
         self.lookback = lookback
         self.unit = unit
+        self.coint_pvalue = coint_pvalue
+        self.refit_every = refit_every  # re-test cointegration every N evaluate()s (~1 day)
         self._w: dict[str, deque] = {s: deque(maxlen=lookback) for s in symbols}
+        self._tradable: dict[tuple[str, str], bool] = {pair: False for pair in pairs}
+        self._eval_count = 0
+
+    def _refit_cointegration(self) -> None:
+        """Engle–Granger gate: only trade pairs whose spread is cointegrated (p < threshold).
+
+        Lazy-imports statsmodels so the bot still imports without it (then trades ungated).
+        For large universes this should move to a worker (run_in_executor) — fine inline for a
+        handful of pairs.
+        """
+        try:
+            from statsmodels.tsa.stattools import coint
+        except ImportError:
+            for pair in self.pairs:
+                self._tradable[pair] = True
+            return
+        for a_sym, b_sym in self.pairs:
+            wa, wb = self._w[a_sym], self._w[b_sym]
+            n = min(len(wa), len(wb))
+            if n < self.lookback:
+                self._tradable[(a_sym, b_sym)] = False
+                continue
+            a = np.array(list(wa)[-n:], dtype=float)
+            b = np.array(list(wb)[-n:], dtype=float)
+            try:
+                self._tradable[(a_sym, b_sym)] = bool(coint(a, b)[1] < self.coint_pvalue)
+            except Exception:
+                self._tradable[(a_sym, b_sym)] = False
 
     def on_bar(self, bar: Bar) -> None:
         if bar.symbol in self._w:
             self._w[bar.symbol].append(bar.close)
 
     def evaluate(self) -> BotOutput:
+        self._eval_count += 1
+        if (self._eval_count - 1) % self.refit_every == 0:
+            self._refit_cointegration()
         targets: list[TargetPosition] = []
         signal = 0.0
         for a_sym, b_sym in self.pairs:
+            if not self._tradable.get((a_sym, b_sym), False):
+                continue  # cointegration gate
             wa, wb = self._w[a_sym], self._w[b_sym]
             n = min(len(wa), len(wb))
             if n < self.lookback:
