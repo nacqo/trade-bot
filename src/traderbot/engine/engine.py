@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from traderbot.allocator.allocator import Allocator
+from traderbot.allocator.allocator import Allocator, sleeve_scale
 from traderbot.allocator.scoring import BotScorer
 from traderbot.config import Config
 from traderbot.execution.broker import Broker
@@ -199,7 +199,15 @@ class Engine:
             out = bot.evaluate()
             if not out.enabled:
                 continue
-            factor = self.weights.get(bot.id, 1.0 / n) * n * self.aggressiveness.get(bot.id, 1.0)
+            weight = self.weights.get(bot.id, 1.0 / n)
+            aggr = self.aggressiveness.get(bot.id, 1.0)
+            deployable = equity * self.config.data.deploy_fraction
+            desired_gross = sum(
+                abs(t.qty * self._prices.get(t.symbol, price))
+                for t in out.targets
+                if t.qty != 0 and t.stop_price is not None
+            )
+            scale = sleeve_scale(weight, aggr, deployable, desired_gross)
             stops = self._stops.setdefault(bot.id, {})
             kept: list[TargetPosition] = []
             for t in out.targets:
@@ -211,7 +219,7 @@ class Engine:
                     continue
                 if t.stop_price is None:
                     continue  # risk: no stop → reject
-                scaled = t.qty * factor
+                scaled = t.qty * scale
                 new_risk = abs(scaled) * abs(price - t.stop_price)
                 without = self.current_open_risk() - self._contrib(bot.id, t.symbol)
                 if without + new_risk <= cap + 1e-9:

@@ -26,6 +26,21 @@ def _clip(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
 
 
+def sleeve_scale(
+    weight: float, aggressiveness: float, deployable: float, desired_gross: float
+) -> float:
+    """Scale factor to size a bot's raw targets to its capital sleeve × aggressiveness.
+
+    sleeve = weight × deployable (dollars). Scaling the bot's targets by
+    sleeve / desired_gross makes its gross notional equal its sleeve; aggressiveness then
+    lets a hot bot run larger (risk caps still clamp the result). Returns 0 if the bot wants
+    no (stopped) exposure.
+    """
+    if desired_gross <= 0:
+        return 0.0
+    return weight * deployable / desired_gross * aggressiveness
+
+
 def _waterfill(weights: dict[str, float], floor: float, cap: float) -> dict[str, float]:
     keys = list(weights)
     n = len(keys)
