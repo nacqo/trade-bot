@@ -15,7 +15,6 @@ from traderbot.backtest.validation import oos_report
 from traderbot.config import Config
 from traderbot.market_data.source import ReplaySource
 from traderbot.state.store import StateStore
-from traderbot.strategies.dormant import DormantBot
 from traderbot.strategies.orb import ORBBot
 from traderbot.strategies.stat_arb import StatArbBot
 from traderbot.strategies.vwap_reversion import VWAPReversionBot
@@ -55,7 +54,6 @@ def _build_bots(symbols: list[str]) -> list:
     bots = [
         ORBBot("orb", symbols, opening_minutes=15),
         VWAPReversionBot("vwap", symbols, bb_period=20),
-        DormantBot("general", "MES/MNQ futures (Phase F)"),
     ]
     if len(symbols) >= 2:
         bots.insert(0, StatArbBot("statarb", [(symbols[0], symbols[1])], lookback=60))
@@ -85,7 +83,6 @@ def cmd_backtest(args) -> int:
         bots = [
             ORBBot("orb", ["AAA", "BBB"], opening_minutes=5, atr_period=5),
             VWAPReversionBot("vwap", ["AAA", "BBB"], bb_period=10),
-            DormantBot("general", "MES/MNQ futures (Phase F)"),
         ]
         print("Synthetic demo backtest (pass --symbols + ALPACA creds for real data).")
 

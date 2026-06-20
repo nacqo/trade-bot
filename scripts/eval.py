@@ -25,7 +25,6 @@ from traderbot.cli import load_dotenv  # noqa: E402
 from traderbot.config import Config  # noqa: E402
 from traderbot.integrations.alpaca import fetch_historical_bars  # noqa: E402
 from traderbot.market_data.source import ReplaySource  # noqa: E402
-from traderbot.strategies.dormant import DormantBot  # noqa: E402
 from traderbot.strategies.orb import ORBBot  # noqa: E402
 from traderbot.strategies.stat_arb import StatArbBot  # noqa: E402
 from traderbot.strategies.vwap_reversion import VWAPReversionBot  # noqa: E402
@@ -72,7 +71,6 @@ def make_combined():
         StatArbBot("statarb", PAIRS, lookback=60),
         ORBBot("orb", SYMBOLS, opening_minutes=15),
         VWAPReversionBot("vwap", SYMBOLS, bb_period=20),
-        DormantBot("general", "futures"),
     ]
 
 

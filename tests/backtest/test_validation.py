@@ -4,7 +4,6 @@ from traderbot.backtest.runner import run_backtest
 from traderbot.backtest.validation import oos_report
 from traderbot.config import Config
 from traderbot.market_data.source import ReplaySource
-from traderbot.strategies.dormant import DormantBot
 from traderbot.strategies.orb import ORBBot
 from traderbot.strategies.vwap_reversion import VWAPReversionBot
 from traderbot.types import Bar
@@ -27,7 +26,6 @@ async def test_oos_report_compares_allocator_to_equal_weight():
     bots = [
         ORBBot("orb", ["AAA", "BBB"], opening_minutes=3, atr_period=3),
         VWAPReversionBot("vwap", ["AAA", "BBB"], bb_period=5),
-        DormantBot("general", "futures"),
     ]
     source = ReplaySource({"AAA": _bars("AAA", 100, 0.3), "BBB": _bars("BBB", 100, -0.2)})
     result = await run_backtest(cfg, source, bots)
