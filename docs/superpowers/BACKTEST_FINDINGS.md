@@ -106,4 +106,45 @@ v1 now ships a **validated edge** (vol-scaled cross-sectional momentum, Sharpe ~
 full system, OOS-validated) **plus a reusable signal-research harness**. The intraday textbook bots
 remain edgeless — keep them for diversification/execution testing, not profit. Before real capital:
 paper-soak, and note the momentum bot is a **daily** factor (run it on daily bars, not the intraday
-loop).
+loop). It's now runnable live: `traderbot momentum` (once-per-day rebalance vs the paper account).
+
+---
+
+# Intraday signal research — why the intraday bots have no edge (2026-06-20)
+
+Setup: 12 diverse names (large-cap + high-vol + ETFs), **minute** bars, 3 months, **294k**
+observations. Tested whether intraday moves predict forward moves (reversal IC: +reversion /
+−momentum), with a time split and a volatility split, then the **decisive** test — per-trade gross
+edge vs transaction cost. Harness: `scripts/intraday_signals.py`.
+
+| horizon | reversal IC (pooled) | OOS sign | per-trade gross edge | vs ~2–4 bps cost |
+|---|---|---|---|---|
+| 5 min | +0.010 | stable | +0.1 bps | dead |
+| 15 min | **+0.033** | +0.019 (stable) | +1.8 bps | **< cost → net negative** |
+| 30–60 min (hi-vol) | −0.029 (momentum) | −0.015 (stable) | **+5.2 bps** | **> cost → net positive** |
+
+**The real reason the intraday bots have no edge:** their signals are statistically real (significant
+IC, OOS-stable), but the **per-trade edge is smaller than transaction costs**. High-frequency
+mean-reversion (the VWAP/Bollinger premise) has a genuine +1.8 bps/15-min edge that is simply eaten
+by ~2–4 bps of slippage. Only **lower-frequency, longer-hold** signals clear costs.
+
+**The one intraday pattern worth adjusting for:** **momentum/continuation over ~30–60 min in
+high-volatility names** (NVDA, TSLA, AMD, META, …) — +5.2 bps gross beats cost. That's the ORB bot's
+premise; it failed only because it was tested on low-vol names (KO/PEP).
+
+## How to adjust each bot
+
+1. **VWAP / Bollinger reversion (5–15 min):** edge < cost → **not tradable retail** (needs
+   rebates / HFT-grade costs). Relegate to experimental; don't deploy for profit.
+2. **ORB / intraday momentum:** the logic (breakout = continuation) is right — fix the **universe**:
+   run it on **high-volatility** names with ~30–60 min+ holds, where +5.2 bps clears costs. No edge
+   on low-vol large-caps.
+3. **Stat-arb (pairs):** same edge-vs-cost trap unless a pair is genuinely cointegrated *and* the
+   spread move exceeds costs — rare. Keep only strongly-cointegrated pairs (the statsmodels gate
+   helps); expect thin pickings.
+4. **Order-flow:** needs L2 (untested here); microstructure edge is real but latency/cost-sensitive
+   and likely retail-infeasible.
+
+**Meta-lesson:** *edge must beat cost.* For retail costs, **low frequency wins** — daily momentum
+(turnover ~4×, costs negligible, Sharpe +0.55) is the robust core; intraday is marginal at best, and
+only longer-hold high-vol momentum survives.

@@ -19,9 +19,20 @@ daily, 5yr; `scripts/signals.py`) found **vol-scaled 12-1 momentum** is signific
 OOS-stable → implemented as `strategies/momentum.py CrossSectionalMomentumBot`, **daily Sharpe ≈
 +0.55 through the full system** (stops/sizing/risk/costs), turnover 4×, dd 1.3%. Reversal/low-vol
 failed OOS. Momentum is a **daily** factor (run on daily bars). Full write-up:
-`docs/superpowers/BACKTEST_FINDINGS.md`. Harnesses: `scripts/eval.py` (intraday), `scripts/signals.py`
-(cross-sectional research). Real Alpaca key in gitignored `.env` (paper). Risk controls validated
-across regimes. Next: paper-soak; more signals need non-price data (fundamentals/options/news).
+`docs/superpowers/BACKTEST_FINDINGS.md`. Harnesses: `scripts/eval.py` (intraday combined),
+`scripts/signals.py` (daily cross-sectional), `scripts/intraday_signals.py` (intraday IC vs cost),
+`scripts/project.py` (2-month projection). Real Alpaca key in gitignored `.env` (paper).
+
+**Momentum is live:** `traderbot momentum` does a once-per-day rebalance vs the paper account
+(`live_momentum.py`); verified (16 orders placed). Fixed a real bug: per-bot suspension + DD-halt
+were permanent → now reset each session (`engine` session-change reset + `RiskManager.resume()`).
+
+**Why the intraday bots have no edge (rigorously, 294k minute obs):** their signals are real (sig.
+IC, OOS-stable) but **per-trade edge < transaction cost**. 15-min reversion +1.8 bps < ~2-4 bps cost
+→ net negative. The one tradable intraday pattern: **30-60 min momentum in high-vol names** (+5.2 bps
+> cost) → adjust ORB to a high-vol universe. Meta-lesson: edge must beat cost → **low frequency wins**
+for retail (daily momentum is the robust core). Next: paper-soak; non-price signals (fundamentals/
+options/news) for more daily edge.
 
 Branch `build/v1` (not merged). Python **3.14** in `.venv`. Run tests: `.venv/bin/python -m pytest -q`.
 Direct CLI run needs `PYTHONPATH=src` (pytest sets it via pyproject).
