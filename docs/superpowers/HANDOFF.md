@@ -12,7 +12,7 @@ whichever bot earned the most (risk-adjusted) recently gets more capital **and**
 architecture live-ready. The user (Nacho) drove the design over many iterations; Jaime is a
 collaborator referenced in chat logs.
 
-## Status: v1 core COMPLETE + reality bridge + 2 hardening conditions. 88 tests green.
+## Status: v1 core + reality bridge + cointegration gate + sleeve sizing + live loop. 96 tests green.
 
 Branch `build/v1` (not merged). Python **3.14** in `.venv`. Run tests: `.venv/bin/python -m pytest -q`.
 Direct CLI run needs `PYTHONPATH=src` (pytest sets it via pyproject).
@@ -36,23 +36,25 @@ Direct CLI run needs `PYTHONPATH=src` (pytest sets it via pyproject).
   suspend that bot). `_risk_checks/_flatten_all/_flatten_bot` in `engine.py`.
 - **Condition 2:** carried entry remainders re-validate in the loop (cancel leftover if bots no
   longer want the symbol).
+- **Cointegration gate (statsmodels):** `StatArbBot._refit_cointegration` Engle–Granger-gates which
+  pairs trade (p < threshold, refit every N evals). statsmodels installed, works on 3.14.
+- **Capital sleeve sizing:** `allocator.sleeve_scale` sizes each bot's gross to `weight × deployable`
+  × aggressiveness (faithful; risk caps clamp). Wired in `engine._act_via_oms`.
+- **Live-streaming loop:** `market_data/alpaca_live.LiveAlpacaSource` (websocket→async stream),
+  `AlpacaBroker` fill-polling (`get_order_by_id` until filled), `live.run_paper` reuses engine+OMS
+  with the real broker+feed (OMS fill model = live participation-cap order-sizer). `paper --symbols`
+  starts it. Pieces DI-tested with mocks.
 
 ### NOT done / known seams (in priority order)
-1. **Live streaming loop + fill confirmation.** `paper` connects + reads account, but there is no
-   live websocket feed loop, and `AlpacaBroker.submit` assumes near-immediate market fills
-   (`filled_qty` is None until filled). A live loop needs `AlpacaFeed` over `alpaca.data.live`
-   StockDataStream + a trade-updates stream to confirm fills. This is the #1 thing before real paper.
-2. **Real OOS / walk-forward backtest + paper soak (spec §18 DoD).** Never run on real data yet
-   (no creds in the build env). The §10 validity rules (walk-forward, survivorship, no-lookahead,
-   multiple-testing for pairs) are coded as *requirements* but only exercised on synthetic data.
-   The A1 reflexivity bet (does the allocator beat equal-weight OOS?) is UNTESTED on real returns —
-   this is the single biggest project risk (see pre-mortem A1).
-3. **Capital sleeve sizing is approximate.** Engine scales target qty by `weight × n_active ×
-   aggressiveness` (`_act_via_oms`), not the spec's precise sleeve math. Works, but not faithful.
-4. **Cointegration gate deferred.** Stat-arb uses numpy OLS β + z-score; the `statsmodels.coint`
-   tradability gate (+ daily refit off the event loop) is a documented hook, not implemented.
-   statsmodels NOT installed (check 3.14 wheels when needed).
-5. **Deferred features (per spec, intentional):** Phase F (futures broker + activate bot 5 on
+1. **Validate live + real data with CREDS.** The live loop and real historical backtest are BUILT +
+   mock-tested but never run against a real Alpaca account (no creds in build env). Real
+   OOS/walk-forward backtest + a paper soak (spec §18 DoD) — including the **A1 reflexivity test**
+   (allocator vs equal-weight on real returns, the #1 project risk, pre-mortem A1) — are the top work.
+   `cli backtest --symbols ... --start ... --end ...` and `cli paper --symbols ...` are ready.
+2. **Live partial-fill reconciliation.** OMS attributes the *requested* participation-capped qty; if
+   the broker partially fills, attribution drifts (`reconcile()` catches it; a tighter live OMS
+   should attribute the broker's actual fill qty). Liquid-name market orders usually fill fully.
+3. **Deferred features (per spec, intentional):** Phase F (futures broker + activate bot 5 on
    MES/MNQ), heavy-footprint dynamic slippage, confidence-gated minimum-order rule.
 
 ## Key design decisions + WHY (don't relitigate)
@@ -105,8 +107,8 @@ PYTHONPATH=src .venv/bin/python -m traderbot.cli backtest --symbols AAPL,MSFT --
 PYTHONPATH=src .venv/bin/python -m traderbot.cli paper          # connects paper broker, prints account
 ```
 Deps installed in `.venv`: core (pydantic, numpy, pandas, aiosqlite, structlog, pandas_market_calendars,
-hypothesis, pytest) + **alpaca-py**. NOT installed: statsmodels, pandas-ta (unused — VWAP/BB hand-rolled),
-quantstats/empyrical (metrics hand-rolled), scipy.
+hypothesis, pytest) + **alpaca-py** + **statsmodels** (cointegration; pulls scipy). NOT installed:
+pandas-ta (unused — VWAP/BB hand-rolled), quantstats/empyrical (metrics hand-rolled).
 
 ## Recommended next steps
 
