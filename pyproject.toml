@@ -18,6 +18,10 @@ traderbot = "traderbot.cli:main"
 asyncio_mode = "auto"
 pythonpath = ["src"]
 testpaths = ["tests"]
+filterwarnings = [
+  "ignore:websockets.legacy is deprecated.*:DeprecationWarning",
+  "ignore:.*websockets.*:DeprecationWarning",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
