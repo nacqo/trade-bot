@@ -26,6 +26,19 @@ def configure_logging() -> None:
     structlog.configure(processors=[structlog.processors.add_log_level, structlog.dev.ConsoleRenderer()])
 
 
+def load_dotenv(path: str = ".env") -> None:
+    """Load KEY=VALUE lines from a local .env into the environment (no override, no dependency)."""
+    if not os.path.exists(path):
+        return
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip())
+
+
 def _demo_source() -> ReplaySource:
     t0 = datetime(2026, 6, 20, 13, 30, tzinfo=timezone.utc)
     bars = {}
@@ -138,6 +151,7 @@ def cmd_paper(args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     configure_logging()
+    load_dotenv()
     parser = argparse.ArgumentParser(prog="traderbot")
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_bt = sub.add_parser("backtest")

@@ -28,6 +28,7 @@ logs/
 # Secrets / config
 .env
 .env.*
+!.env.example
 secrets.toml
 config.local.*
 
