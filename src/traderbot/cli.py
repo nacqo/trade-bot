@@ -149,6 +149,45 @@ def cmd_paper(args) -> int:
     return 0
 
 
+MOMENTUM_UNIVERSE = [
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "JPM", "BAC", "WFC",
+    "XOM", "CVX", "COP", "KO", "PEP", "PG", "WMT", "HD", "MCD", "DIS",
+    "NKE", "V", "MA", "UNH", "JNJ", "PFE", "MRK", "CSCO", "INTC", "AMD",
+    "QCOM", "CRM", "ORCL", "IBM", "T", "VZ", "CMCSA", "COST", "TGT", "LOW",
+    "CAT", "BA", "GE", "HON",
+]
+
+
+def cmd_momentum(args) -> int:
+    key, secret = os.getenv("ALPACA_API_KEY"), os.getenv("ALPACA_SECRET_KEY")
+    if not (key and secret):
+        print("momentum needs ALPACA_API_KEY and ALPACA_SECRET_KEY env vars.")
+        return 2
+    from datetime import datetime, timedelta, timezone
+
+    from alpaca.data.historical import StockHistoricalDataClient
+    from alpaca.data.timeframe import TimeFrame
+
+    from traderbot.integrations.alpaca import build_alpaca_broker, fetch_historical_bars
+    from traderbot.live_momentum import momentum_rebalance
+    from traderbot.strategies.momentum import CrossSectionalMomentumBot
+
+    universe = [s.strip().upper() for s in args.symbols.split(",")] if args.symbols else MOMENTUM_UNIVERSE
+    broker = build_alpaca_broker(key, secret, paper=True)
+    client = StockHistoricalDataClient(key, secret)
+    end = datetime.now(timezone.utc)
+    bars = fetch_historical_bars(client, universe, end - timedelta(days=420), end, timeframe=TimeFrame.Day)
+    history = sorted((b for bl in bars.values() for b in bl), key=lambda b: b.ts)
+    bot = CrossSectionalMomentumBot("momentum", universe)
+
+    submitted = momentum_rebalance(broker, bot, history)
+    print(f"Momentum daily rebalance: {len(submitted)} orders submitted to Alpaca paper.")
+    for sym, delta in submitted:
+        print(f"  {sym}: {delta:+.0f}")
+    print("Run this once per trading day (e.g. via cron after the close).")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     configure_logging()
     load_dotenv()
@@ -166,6 +205,9 @@ def main(argv: list[str] | None = None) -> int:
     p_paper = sub.add_parser("paper")
     p_paper.add_argument("--symbols", default=None, help="comma-separated; starts the live loop")
     p_paper.set_defaults(func=cmd_paper)
+    p_mom = sub.add_parser("momentum")
+    p_mom.add_argument("--symbols", default=None, help="comma-separated universe (default: 44 large-caps)")
+    p_mom.set_defaults(func=cmd_momentum)
     args = parser.parse_args(argv)
     return args.func(args)
 
