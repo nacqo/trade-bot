@@ -56,6 +56,10 @@ class Engine:
         self._stops: dict[str, dict[str, float]] = {}
         self._prev_equity: dict[str, float] = {b.id: 0.0 for b in self.bots}
         self._last_rebalance_ts = None
+        self._now = None
+        self._suspended: set[str] = set()
+        self._peak_equity = config.starting_equity
+        self._bot_peak: dict[str, float] = {}
         self.equity_curve: list[float] = []
         self.per_bot_equity: dict[str, list[float]] = {b.id: [] for b in self.bots}
         self.weights_history: list[dict[str, float]] = []
@@ -76,6 +80,7 @@ class Engine:
 
     async def _dispatch(self, event) -> None:
         if isinstance(event, Bar):
+            self._now = event.ts
             self._prices[event.symbol] = event.close
             self.broker.set_mark(event.symbol, event.close)
             for book in self.books.values():
@@ -83,10 +88,13 @@ class Engine:
             for bot in self.bots:
                 bot.on_bar(event)
             await self._maybe_rebalance(event.ts)
-            if self.oms is not None:
-                await self._act_via_oms(event)
-            else:
-                await self._act_direct()
+            if self.risk is not None:
+                await self._risk_checks()
+            if not (self.risk is not None and self.risk.halted):
+                if self.oms is not None:
+                    await self._act_via_oms(event)
+                else:
+                    await self._act_direct()
             self.equity_curve.append(self.broker.equity())
             for bot_id, book in self.books.items():
                 self.per_bot_equity[bot_id].append(book.equity)
@@ -120,6 +128,47 @@ class Engine:
                 ts, bot_id, scores[bot_id], res.weight, res.weight * deployable, res.aggressiveness
             )
 
+    async def _risk_checks(self) -> None:
+        """Portfolio drawdown → halt + flatten everything; per-bot drawdown → flatten + suspend."""
+        equity = self.broker.equity()
+        self._peak_equity = max(self._peak_equity, equity)
+        if self._peak_equity > 0:
+            dd = (self._peak_equity - equity) / self._peak_equity
+            if dd >= self.config.risk.total_dd_halt:
+                self.risk.halt()
+                await self._flatten_all()
+                await self.store.record_risk_event(self._now, "halt", f"portfolio drawdown {dd:.4f}")
+                return
+        budget = self.config.risk.per_bot_dd_kill * self.config.starting_equity
+        for bot in self.bots:
+            if not bot.enabled or bot.id in self._suspended:
+                continue
+            eq = self.books[bot.id].equity
+            self._bot_peak[bot.id] = max(self._bot_peak.get(bot.id, eq), eq)
+            if self._bot_peak[bot.id] - eq >= budget:
+                await self._flatten_bot(bot.id)
+                await self.store.record_risk_event(self._now, "bot_suspend", bot.id)
+
+    async def _flatten_all(self) -> None:
+        for symbol, pos in list(self.broker.positions().items()):
+            if pos.qty != 0:
+                fill = self.broker.submit(OrderIntent("halt", symbol, -pos.qty, None))
+                await self.store.record_fill(fill)
+        for book in self.books.values():
+            for symbol, pos in list(book.positions.items()):
+                book.apply_fill(symbol, -pos.qty, self._prices.get(symbol, pos.avg_price))
+        self._stops.clear()
+
+    async def _flatten_bot(self, bot_id: str) -> None:
+        book = self.books[bot_id]
+        for symbol, pos in list(book.positions.items()):
+            if pos.qty != 0:
+                fill = self.broker.submit(OrderIntent(bot_id, symbol, -pos.qty, None))
+                await self.store.record_fill(fill)
+                book.apply_fill(symbol, -pos.qty, fill.price)
+        self._suspended.add(bot_id)
+        self._stops.pop(bot_id, None)
+
     def current_open_risk(self) -> float:
         total = 0.0
         for bot_id, book in self.books.items():
@@ -145,6 +194,8 @@ class Engine:
         price = bar.close
         bot_targets: dict[str, list[TargetPosition]] = {}
         for bot in active:
+            if bot.id in self._suspended:
+                continue
             out = bot.evaluate()
             if not out.enabled:
                 continue
@@ -175,6 +226,8 @@ class Engine:
 
     async def _act_direct(self) -> None:
         for bot in self.bots:
+            if bot.id in self._suspended:
+                continue
             out = bot.evaluate()
             if not out.enabled:
                 continue
