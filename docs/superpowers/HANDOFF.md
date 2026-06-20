@@ -46,16 +46,19 @@ Direct CLI run needs `PYTHONPATH=src` (pytest sets it via pyproject).
   starts it. Pieces DI-tested with mocks.
 
 ### NOT done / known seams (in priority order)
-1. **Validate live + real data with CREDS.** The live loop and real historical backtest are BUILT +
-   mock-tested but never run against a real Alpaca account (no creds in build env). Real
-   OOS/walk-forward backtest + a paper soak (spec §18 DoD) — including the **A1 reflexivity test**
-   (allocator vs equal-weight on real returns, the #1 project risk, pre-mortem A1) — are the top work.
-   `cli backtest --symbols ... --start ... --end ...` and `cli paper --symbols ...` are ready.
-2. **Live partial-fill reconciliation.** OMS attributes the *requested* participation-capped qty; if
-   the broker partially fills, attribution drifts (`reconcile()` catches it; a tighter live OMS
-   should attribute the broker's actual fill qty). Liquid-name market orders usually fill fully.
-3. **Deferred features (per spec, intentional):** Phase F (futures broker + activate bot 5 on
+1. **Validate live + real data with CREDS (ONLY real blocker — user has no Alpaca key yet).** The
+   live loop, real historical backtest, AND the OOS/walk-forward harness (`backtest/validation.py`
+   `oos_report`, wired into `cli backtest`) are all BUILT + tested on synthetic data. What remains is
+   running them against a real Alpaca account: real OOS backtest + paper soak (spec §18 DoD),
+   including the **A1 reflexivity test** (allocator vs equal-weight on real returns — the #1 risk,
+   pre-mortem A1). Commands ready: `traderbot backtest --symbols ... --start ... --end ...`,
+   `traderbot paper --symbols ...`.
+2. **Deferred features (per spec, intentional):** Phase F (futures broker + activate bot 5 on
    MES/MNQ), heavy-footprint dynamic slippage, confidence-gated minimum-order rule.
+
+(Done since first handoff: cointegration gate, sleeve sizing, live loop, **live partial-fill
+reconciliation** — OMS now attributes the broker's actual fill qty + carries shortfall — and the
+**OOS validation harness**. Package is now `pip install -e .`; `traderbot` runs without PYTHONPATH.)
 
 ## Key design decisions + WHY (don't relitigate)
 
