@@ -9,13 +9,14 @@ from datetime import datetime, timedelta, timezone
 
 import structlog
 
-from traderbot.backtest.metrics import metrics
+from traderbot.backtest.metrics import allocator_beats_equal_weight, metrics
 from traderbot.backtest.runner import run_backtest
 from traderbot.config import Config
 from traderbot.market_data.source import ReplaySource
 from traderbot.state.store import StateStore
 from traderbot.strategies.dormant import DormantBot
 from traderbot.strategies.orb import ORBBot
+from traderbot.strategies.stat_arb import StatArbBot
 from traderbot.strategies.vwap_reversion import VWAPReversionBot
 from traderbot.types import Bar
 
@@ -36,21 +37,51 @@ def _demo_source() -> ReplaySource:
     return ReplaySource(bars)
 
 
-def cmd_backtest(args) -> int:
-    cfg = Config.default()
-    cfg.allocator.min_obs = 3
-    cfg.allocator.rebalance_minutes = 1
+def _build_bots(symbols: list[str]) -> list:
     bots = [
-        ORBBot("orb", ["AAA", "BBB"], opening_minutes=5, atr_period=5),
-        VWAPReversionBot("vwap", ["AAA", "BBB"], bb_period=10),
+        ORBBot("orb", symbols, opening_minutes=15),
+        VWAPReversionBot("vwap", symbols, bb_period=20),
         DormantBot("general", "MES/MNQ futures (Phase F)"),
     ]
-    result = asyncio.run(run_backtest(cfg, _demo_source(), bots))
+    if len(symbols) >= 2:
+        bots.insert(0, StatArbBot("statarb", [(symbols[0], symbols[1])], lookback=60))
+    return bots
+
+
+def cmd_backtest(args) -> int:
+    key, secret = os.getenv("ALPACA_API_KEY"), os.getenv("ALPACA_SECRET_KEY")
+    if args.symbols and key and secret:
+        from datetime import datetime as _dt
+
+        from traderbot.integrations.alpaca import build_historical_source
+
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
+        source = build_historical_source(
+            key, secret, symbols, _dt.fromisoformat(args.start), _dt.fromisoformat(args.end),
+            feed=args.feed,
+        )
+        cfg = Config.default()
+        bots = _build_bots(symbols)
+        print(f"Real Alpaca backtest: {symbols}  {args.start}..{args.end}  feed={args.feed}")
+    else:
+        cfg = Config.default()
+        cfg.allocator.min_obs = 3
+        cfg.allocator.rebalance_minutes = 1
+        source = _demo_source()
+        bots = [
+            ORBBot("orb", ["AAA", "BBB"], opening_minutes=5, atr_period=5),
+            VWAPReversionBot("vwap", ["AAA", "BBB"], bb_period=10),
+            DormantBot("general", "MES/MNQ futures (Phase F)"),
+        ]
+        print("Synthetic demo backtest (pass --symbols + ALPACA creds for real data).")
+
+    result = asyncio.run(run_backtest(cfg, source, bots))
     m = metrics(result, periods_per_year=252 * 390)
     print("Backtest complete.")
     print(f"  bars: {len(result.equity_curve)}  fills: {len(result.fills)}")
     print(f"  sharpe: {m['sharpe']:.3f}  max_drawdown: {m['max_drawdown']:.4f}")
     print(f"  hit_rate: {m['hit_rate']:.3f}  turnover: {m['turnover']:.3f}")
+    print(f"  allocator beats equal-weight: {allocator_beats_equal_weight(result, cfg.starting_equity)}")
     print(f"  final weights: {result.weights_history[-1] if result.weights_history else {}}")
     return 0
 
@@ -76,10 +107,18 @@ def cmd_status(args) -> int:
 
 
 def cmd_paper(args) -> int:
-    if not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
+    key, secret = os.getenv("ALPACA_API_KEY"), os.getenv("ALPACA_SECRET_KEY")
+    if not (key and secret):
         print("paper trading needs ALPACA_API_KEY and ALPACA_SECRET_KEY env vars.")
         return 2
-    print("paper trading wiring is available; connect AlpacaBroker/AlpacaFeed here.")
+    from traderbot.integrations.alpaca import build_alpaca_broker
+
+    broker = build_alpaca_broker(key, secret, paper=True)
+    print("Connected to Alpaca paper.")
+    print(f"  equity: {broker.equity():.2f}  buying_power: {broker.buying_power():.2f}")
+    print(f"  positions: {broker.positions()}")
+    print("NOTE: the streaming live loop (AlpacaFeed websocket + fill confirmation) is the next "
+          "seam; this confirms broker connectivity + account state.")
     return 0
 
 
@@ -87,7 +126,12 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging()
     parser = argparse.ArgumentParser(prog="traderbot")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("backtest").set_defaults(func=cmd_backtest)
+    p_bt = sub.add_parser("backtest")
+    p_bt.add_argument("--symbols", default=None, help="comma-separated, e.g. AAPL,MSFT")
+    p_bt.add_argument("--start", default="2026-01-02", help="ISO date/datetime")
+    p_bt.add_argument("--end", default="2026-01-09", help="ISO date/datetime")
+    p_bt.add_argument("--feed", default="iex", choices=["iex", "sip"])
+    p_bt.set_defaults(func=cmd_backtest)
     p_status = sub.add_parser("status")
     p_status.add_argument("--db", default="traderbot.sqlite")
     p_status.set_defaults(func=cmd_status)
