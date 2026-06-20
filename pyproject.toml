@@ -3,8 +3,7 @@ name = "traderbot"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-  "alpaca-py>=0.20", "statsmodels>=0.14", "pandas-ta>=0.3.14b",
-  "pandas-market-calendars>=4.3", "quantstats>=0.0.62", "empyrical>=0.5",
+  "alpaca-py>=0.20", "statsmodels>=0.14", "pandas-market-calendars>=4.3",
   "pandas>=2.0", "numpy>=1.26", "scipy>=1.11", "pydantic>=2.5",
   "aiosqlite>=0.19", "structlog>=24.1",
 ]
