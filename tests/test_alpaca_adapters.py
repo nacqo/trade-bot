@@ -19,6 +19,19 @@ def test_submit_maps_order_to_signed_fill():
     assert client.submit_order.call_args.kwargs["side"] == "sell"
 
 
+def test_submit_polls_until_filled():
+    client = MagicMock()
+    pending = MagicMock(id="o1", filled_qty=None, filled_avg_price=None)
+    filled = MagicMock(id="o1", filled_qty="5", filled_avg_price="100.0")
+    client.submit_order.return_value = pending
+    client.get_order_by_id.side_effect = [pending, filled]
+    broker = AlpacaBroker(client, sleep=lambda s: None)
+
+    fill = broker.submit(OrderIntent("b1", "AAPL", 5, 99.0))
+    assert fill.qty == 5.0 and fill.price == 100.0
+    assert client.get_order_by_id.call_count == 2  # polled until fill confirmed
+
+
 def test_positions_and_account_normalized():
     client = MagicMock()
     client.get_all_positions.return_value = [

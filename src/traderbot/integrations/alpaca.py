@@ -51,6 +51,9 @@ class TradingClientShim:
     def get_account(self):
         return self._client.get_account()
 
+    def get_order_by_id(self, order_id):
+        return self._client.get_order_by_id(order_id)
+
 
 def build_alpaca_broker(api_key: str, secret_key: str, paper: bool = True) -> AlpacaBroker:
     return AlpacaBroker(TradingClientShim(TradingClient(api_key, secret_key, paper=paper)))
@@ -91,3 +94,22 @@ def build_historical_source(
 ) -> ReplaySource:
     client = StockHistoricalDataClient(api_key, secret_key)
     return ReplaySource(fetch_historical_bars(client, symbols, start, end, **kwargs))
+
+
+def build_live_source(api_key: str, secret_key: str, symbols: list[str]):
+    """Wire the real StockDataStream into a LiveAlpacaSource. ⚠️ Needs a live connection;
+    validate against the paper account (not exercised by the test suite).
+    """
+    from alpaca.data.live import StockDataStream
+
+    from traderbot.market_data.alpaca_live import LiveAlpacaSource
+
+    stream = StockDataStream(api_key, secret_key)
+
+    def subscribe(handler):
+        stream.subscribe_bars(handler, *symbols)
+
+    async def run():
+        await stream._run_forever()
+
+    return LiveAlpacaSource(subscribe, run)

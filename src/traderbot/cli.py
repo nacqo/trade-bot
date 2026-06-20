@@ -117,8 +117,17 @@ def cmd_paper(args) -> int:
     print("Connected to Alpaca paper.")
     print(f"  equity: {broker.equity():.2f}  buying_power: {broker.buying_power():.2f}")
     print(f"  positions: {broker.positions()}")
-    print("NOTE: the streaming live loop (AlpacaFeed websocket + fill confirmation) is the next "
-          "seam; this confirms broker connectivity + account state.")
+    if args.symbols:
+        from traderbot.integrations.alpaca import build_live_source
+        from traderbot.live import run_paper
+
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
+        source = build_live_source(key, secret, symbols)
+        bots = _build_bots(symbols)
+        print(f"Starting live paper loop on {symbols} (Ctrl-C to stop)...")
+        asyncio.run(run_paper(Config.default(), broker, source, bots))
+    else:
+        print("NOTE: pass --symbols A,B to start the live streaming loop; this confirmed connectivity.")
     return 0
 
 
@@ -135,7 +144,9 @@ def main(argv: list[str] | None = None) -> int:
     p_status = sub.add_parser("status")
     p_status.add_argument("--db", default="traderbot.sqlite")
     p_status.set_defaults(func=cmd_status)
-    sub.add_parser("paper").set_defaults(func=cmd_paper)
+    p_paper = sub.add_parser("paper")
+    p_paper.add_argument("--symbols", default=None, help="comma-separated; starts the live loop")
+    p_paper.set_defaults(func=cmd_paper)
     args = parser.parse_args(argv)
     return args.func(args)
 
