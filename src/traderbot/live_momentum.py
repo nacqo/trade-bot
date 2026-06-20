@@ -7,11 +7,10 @@ and submit only the deltas. Run this once per trading day (cron or a daily loop)
 
 from __future__ import annotations
 
-from traderbot.strategies.momentum import CrossSectionalMomentumBot
 from traderbot.types import Bar, OrderIntent
 
 
-def momentum_rebalance(broker, bot: CrossSectionalMomentumBot, history: list[Bar], *,
+def momentum_rebalance(broker, bot, history: list[Bar], *,
                        deploy_fraction: float = 1.0, max_gross_leverage: float = 1.5) -> list[tuple]:
     """Warm `bot` on `history` (ts-ordered), size targets to the account, submit position deltas."""
     last_close: dict[str, float] = {}
