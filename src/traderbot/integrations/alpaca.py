@@ -54,6 +54,9 @@ class TradingClientShim:
     def get_order_by_id(self, order_id):
         return self._client.get_order_by_id(order_id)
 
+    def cancel_orders(self):
+        return self._client.cancel_orders()
+
 
 def build_alpaca_broker(api_key: str, secret_key: str, paper: bool = True) -> AlpacaBroker:
     return AlpacaBroker(TradingClientShim(TradingClient(api_key, secret_key, paper=paper)))

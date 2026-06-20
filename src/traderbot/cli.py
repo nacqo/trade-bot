@@ -188,6 +188,21 @@ def cmd_momentum(args) -> int:
     return 0
 
 
+def cmd_cancel(args) -> int:
+    key, secret = os.getenv("ALPACA_API_KEY"), os.getenv("ALPACA_SECRET_KEY")
+    if not (key and secret):
+        print("cancel needs ALPACA_API_KEY and ALPACA_SECRET_KEY env vars.")
+        return 2
+    from traderbot.integrations.alpaca import build_alpaca_broker
+
+    broker = build_alpaca_broker(key, secret, paper=True)
+    broker.cancel_all_orders()
+    print("Cancelled all open orders on the Alpaca paper account.")
+    pos = broker.positions()
+    print(f"open positions now: {pos if pos else 'none'}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     configure_logging()
     load_dotenv()
@@ -208,6 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     p_mom = sub.add_parser("momentum")
     p_mom.add_argument("--symbols", default=None, help="comma-separated universe (default: 44 large-caps)")
     p_mom.set_defaults(func=cmd_momentum)
+    sub.add_parser("cancel").set_defaults(func=cmd_cancel)
     args = parser.parse_args(argv)
     return args.func(args)
 

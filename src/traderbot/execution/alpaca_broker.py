@@ -63,3 +63,6 @@ class AlpacaBroker:
         long_mv = float(getattr(account, "long_market_value", 0.0) or 0.0)
         short_mv = float(getattr(account, "short_market_value", 0.0) or 0.0)
         return long_mv + abs(short_mv)
+
+    def cancel_all_orders(self):
+        return self.client.cancel_orders()
