@@ -67,19 +67,27 @@ class OMS:
             result = self.fm.fill(
                 CarryOrder("net", symbol, order.qty, is_entry=is_entry), candle, still_valid=sv
             )
-            if result.cancelled or result.filled_qty == 0:
+            if result.cancelled:
+                continue
+            if result.filled_qty == 0:
+                self.pending[symbol] = order  # nothing fillable this candle (e.g. cap → 0); carry
                 continue
 
             fill = self.broker.submit(OrderIntent("net", symbol, result.filled_qty, None))
             fills.append(fill)
-            for bot_id, qty in order.attribute(result.filled_qty).items():
+            actual = fill.qty  # broker's REAL fill — may be < requested live (partial fill)
+            attributed = order.attribute(actual)
+            for bot_id, qty in attributed.items():
                 if qty != 0:
                     books[bot_id].apply_fill(symbol, qty, fill.price)
 
-            if result.remainder != 0:
-                attributed = order.attribute(result.filled_qty)
-                remainder_contrib = {b: order.contributors[b] - attributed.get(b, 0.0) for b in order.contributors}
-                self.pending[symbol] = NetOrder(symbol, result.remainder, remainder_contrib)
+            # carry whatever still isn't filled: capped-out part + any live partial shortfall
+            remainder = order.qty - actual
+            if abs(remainder) > 1e-9:
+                remainder_contrib = {
+                    b: order.contributors[b] - attributed.get(b, 0.0) for b in order.contributors
+                }
+                self.pending[symbol] = NetOrder(symbol, remainder, remainder_contrib)
         return fills
 
     @staticmethod
