@@ -87,6 +87,28 @@ class RiskManager:
             factor *= max(0.0, 1.0 - drawdown / self.cfg.total_dd_halt)
         return max(0.0, min(1.0, factor))
 
+    def per_bot_drawdown_breach(self, equity_curve: list[float]) -> bool:
+        """True if a bot drew down ≥ per_bot_dd_kill from its running peak → flatten + suspend."""
+        if not equity_curve:
+            return False
+        peak = equity_curve[0]
+        for value in equity_curve:
+            peak = max(peak, value)
+        if peak <= 0:
+            return False
+        drawdown = (peak - equity_curve[-1]) / peak
+        return drawdown >= self.cfg.per_bot_dd_kill
+
+    def should_halt(
+        self, *, drawdown: float = 0.0, margin_util: float = 0.0, watchdog_tripped: bool = False
+    ) -> bool:
+        return (
+            self._halted
+            or drawdown >= self.cfg.total_dd_halt
+            or margin_util >= 1.0
+            or watchdog_tripped
+        )
+
     def halt(self) -> None:
         self._halted = True
 
