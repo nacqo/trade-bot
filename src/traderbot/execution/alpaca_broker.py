@@ -23,8 +23,8 @@ class AlpacaBroker:
             symbol=intent.symbol, qty=abs(intent.target_qty), side=side, type="market"
         )
         sign = 1.0 if intent.target_qty > 0 else -1.0
-        filled = float(order.filled_qty) * sign
-        price = float(order.filled_avg_price)
+        filled = float(order.filled_qty or 0.0) * sign  # None until filled (live seam)
+        price = float(order.filled_avg_price or 0.0)
         return Fill(intent.bot_id, intent.symbol, filled, price, datetime.now(timezone.utc))
 
     def positions(self) -> dict[str, Position]:
