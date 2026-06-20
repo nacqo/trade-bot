@@ -56,8 +56,13 @@ class OMS:
         for symbol, order in nets.items():
             if order.qty == 0 or symbol != candle.symbol:
                 continue
-            if abs(order.qty) * candle.close > self.broker.buying_power() + 1e-9:
-                continue  # buying-power guard: never fund past the leverage cap
+            # Buying-power guard + independent gross-leverage cap. The broker's reported buying
+            # power can far exceed our intended cap (e.g. Alpaca PDT shows 4× equity); clamp to
+            # equity × max_gross_leverage − current gross so our 1.5× cap binds live too.
+            lev_room = max(0.0, equity * self.rm.cfg.max_gross_leverage - self.broker.gross())
+            effective_bp = min(self.broker.buying_power(), lev_room)
+            if abs(order.qty) * candle.close > effective_bp + 1e-9:
+                continue
 
             positions = self.broker.positions()
             cur_real = positions[symbol].qty if symbol in positions else 0.0

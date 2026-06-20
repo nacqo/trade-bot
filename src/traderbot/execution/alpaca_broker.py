@@ -57,3 +57,9 @@ class AlpacaBroker:
 
     def buying_power(self) -> float:
         return float(self.client.get_account().buying_power)
+
+    def gross(self) -> float:
+        account = self.client.get_account()
+        long_mv = float(getattr(account, "long_market_value", 0.0) or 0.0)
+        short_mv = float(getattr(account, "short_market_value", 0.0) or 0.0)
+        return long_mv + abs(short_mv)

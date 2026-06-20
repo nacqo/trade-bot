@@ -56,6 +56,27 @@ class _HalfFillBroker:
     def buying_power(self):
         return 1e9
 
+    def gross(self):
+        return 0.0
+
+
+async def test_leverage_cap_binds_below_broker_buying_power():
+    # broker offers 4x buying power (PDT-style), but our risk cap is 1.5x equity
+    broker = FakeBroker(100_000.0, max_leverage=4.0)
+    broker.set_mark("AAA", 100.0)
+    oms = OMS(SimulatedFillModel(0.05, 1.0, True), RiskManager(RiskCfg(max_gross_leverage=1.5)), broker)
+    books = {"A": VirtualBook("A")}
+    candle = Bar("AAA", TS, 100.0, 100.0, 100.0, 100.0, 100_000_000)  # cap not binding
+
+    # $200k order (2x equity): broker's 4x would allow it, our 1.5x must reject
+    await oms.execute({"A": [TargetPosition("AAA", 2000, 95.0)]}, candle, 100_000.0, books)
+    assert "AAA" not in broker.positions()
+
+    # $100k order (1x equity): within 1.5x → fills, gross stays <= 1.5x equity
+    await oms.execute({"A": [TargetPosition("AAA", 1000, 95.0)]}, candle, 100_000.0, books)
+    assert broker.gross() <= 1.5 * 100_000 + 1e-6
+    assert broker.positions()["AAA"].qty == 1000
+
 
 async def test_partial_fill_attributes_actual_and_carries_shortfall():
     fm = SimulatedFillModel(0.05, 1.0, True)

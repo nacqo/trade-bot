@@ -52,6 +52,9 @@ def test_status_command_prints_allocations(tmp_path, capsys):
 
 
 def test_paper_without_creds_returns_nonzero(capsys, monkeypatch):
+    import traderbot.cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "load_dotenv", lambda *a, **k: None)  # ignore any dev .env
     monkeypatch.delenv("ALPACA_API_KEY", raising=False)
     monkeypatch.delenv("ALPACA_SECRET_KEY", raising=False)
     assert main(["paper"]) == 2
