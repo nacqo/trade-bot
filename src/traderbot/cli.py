@@ -9,8 +9,9 @@ from datetime import datetime, timedelta, timezone
 
 import structlog
 
-from traderbot.backtest.metrics import allocator_beats_equal_weight, metrics
+from traderbot.backtest.metrics import metrics
 from traderbot.backtest.runner import run_backtest
+from traderbot.backtest.validation import oos_report
 from traderbot.config import Config
 from traderbot.market_data.source import ReplaySource
 from traderbot.state.store import StateStore
@@ -81,7 +82,11 @@ def cmd_backtest(args) -> int:
     print(f"  bars: {len(result.equity_curve)}  fills: {len(result.fills)}")
     print(f"  sharpe: {m['sharpe']:.3f}  max_drawdown: {m['max_drawdown']:.4f}")
     print(f"  hit_rate: {m['hit_rate']:.3f}  turnover: {m['turnover']:.3f}")
-    print(f"  allocator beats equal-weight: {allocator_beats_equal_weight(result, cfg.starting_equity)}")
+    oos = oos_report(result, cfg.starting_equity, train_frac=0.5, windows=4)
+    print(f"  OOS sharpe — allocator: {oos['oos_sharpe_allocator']:.3f}  "
+          f"equal-weight: {oos['oos_sharpe_equal_weight']:.3f}")
+    print(f"  allocator beats equal-weight OOS: {oos['allocator_beats_equal_weight_oos']}  "
+          f"(won {oos['windows_allocator_won']}/{oos['windows_total']} windows)")
     print(f"  final weights: {result.weights_history[-1] if result.weights_history else {}}")
     return 0
 
