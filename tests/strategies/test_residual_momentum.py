@@ -8,7 +8,7 @@ T0 = datetime(2026, 1, 2, tzinfo=timezone.utc)
 
 def test_longs_high_idiosyncratic_momentum():
     syms = [f"S{i}" for i in range(12)]
-    bot = ResidualMomentumBot("rm", syms, lookback=20, skip=2, quantile=0.2)
+    bot = ResidualMomentumBot("rm", syms, lookback=20, skip=2, quantile=0.2, vol_scale=False)
     for t in range(25):
         for i, s in enumerate(syms):
             common = 0.5 * t                       # shared market trend (stripped by residual)

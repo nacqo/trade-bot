@@ -26,8 +26,6 @@ from traderbot.config import Config  # noqa: E402
 from traderbot.integrations.alpaca import fetch_historical_bars  # noqa: E402
 from traderbot.market_data.source import ReplaySource  # noqa: E402
 from traderbot.strategies.orb import ORBBot  # noqa: E402
-from traderbot.strategies.stat_arb import StatArbBot  # noqa: E402
-from traderbot.strategies.vwap_reversion import VWAPReversionBot  # noqa: E402
 
 SYMBOLS = ["KO", "PEP", "XOM", "CVX"]
 PAIRS = [("KO", "PEP"), ("XOM", "CVX")]
@@ -67,20 +65,14 @@ async def run(name, bots, bars, show_weights=False):
 
 
 def make_combined():
-    return [
-        StatArbBot("statarb", PAIRS, lookback=60),
-        ORBBot("orb", SYMBOLS, opening_minutes=15),
-        VWAPReversionBot("vwap", SYMBOLS, bb_period=20),
-    ]
+    return [ORBBot("orb", SYMBOLS, opening_minutes=15)]
 
 
 async def main():
     bars = get_bars(SYMBOLS, START, END)
     n = sum(len(v) for v in bars.values())
     print(f"data: {SYMBOLS} {START}..{END}  bars={n}")
-    await run("solo statarb", [StatArbBot("statarb", PAIRS, lookback=60)], bars)
     await run("solo orb", [ORBBot("orb", SYMBOLS, opening_minutes=15)], bars)
-    await run("solo vwap", [VWAPReversionBot("vwap", SYMBOLS, bb_period=20)], bars)
     await run("combined", make_combined(), bars, show_weights=True)
 
     # robustness: run combined over sequential thirds (different regimes)

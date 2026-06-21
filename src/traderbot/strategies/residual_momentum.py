@@ -25,7 +25,8 @@ class ResidualMomentumBot(Strategy):
         skip: int = 21,
         quantile: float = 0.2,
         unit: float = 1.0,
-        stop_frac: float = 0.15,
+        stop_frac: float = 0.25,
+        vol_scale: bool = True,
     ) -> None:
         super().__init__(id, symbols)
         self.lookback = lookback
@@ -33,6 +34,7 @@ class ResidualMomentumBot(Strategy):
         self.quantile = quantile
         self.unit = unit
         self.stop_frac = stop_frac
+        self.vol_scale = vol_scale
         self._hist: dict[str, deque] = {s: deque(maxlen=lookback + 2) for s in symbols}
 
     def on_bar(self, bar: Bar) -> None:
@@ -55,7 +57,10 @@ class ResidualMomentumBot(Strategy):
             beta = np.cov(rets[i], mkt)[0, 1] / var_mkt
             resid = rets[i] - beta * mkt
             window = resid[-self.lookback:-self.skip] if len(resid) >= self.lookback else resid[:-self.skip]
-            scores[s] = float(window.sum())
+            score = float(window.sum())
+            if self.vol_scale:
+                score = score / (resid.std() + 1e-9)  # risk-scaled (helped plain momentum too)
+            scores[s] = score
             last[s] = closes[s][-1]
 
         ranked = sorted(scores, key=scores.get)

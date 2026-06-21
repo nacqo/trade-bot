@@ -33,9 +33,7 @@ from traderbot.market_data.source import ReplaySource  # noqa: E402
 from traderbot.strategies.orb import ORBBot  # noqa: E402
 from traderbot.strategies.momentum import CrossSectionalMomentumBot  # noqa: E402
 from traderbot.strategies.residual_momentum import ResidualMomentumBot  # noqa: E402
-from traderbot.strategies.stat_arb import StatArbBot  # noqa: E402
 from traderbot.strategies.trend import TimeSeriesMomentumBot  # noqa: E402
-from traderbot.strategies.vwap_reversion import VWAPReversionBot  # noqa: E402
 
 U44 = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "JPM", "BAC", "WFC",
        "XOM", "CVX", "COP", "KO", "PEP", "PG", "WMT", "HD", "MCD", "DIS",
@@ -99,7 +97,6 @@ GUIDANCE = {
     "trend": "KEEP (diversifier). Improve: add asset classes, blend fast+slow trend, target constant vol.",
     "stat-arb": "KEEP THIN. Improve: trade only strongly-cointegrated pairs, size for spread>cost, longer holds.",
     "orb": "FIX or drop. Improve: switch to a HIGH-VOL universe (NVDA/TSLA/AMD) + 30-60min holds; edgeless on low-vol.",
-    "vwap": "DROP candidate. 15-min reversion edge (+1.8bps) < cost (~2-4bps) at retail; needs rebates/HFT to win.",
 }
 
 
@@ -112,9 +109,7 @@ async def main():
         ("momentum", CrossSectionalMomentumBot("m", list(daily44.keys())), daily44, True),
         ("residmom", ResidualMomentumBot("rm", list(daily44.keys())), daily44, True),
         ("trend", TimeSeriesMomentumBot("t", list(etf.keys())), etf, True),
-        ("stat-arb", StatArbBot("s", [("KO", "PEP")], lookback=60), minute, False),
         ("orb", ORBBot("o", MIN4, opening_minutes=15), minute, False),
-        ("vwap", VWAPReversionBot("v", MIN4, bb_period=20), minute, False),
     ]
     results = [await evaluate(n, b, d, daily) for n, b, d, daily in configs]
     results.sort(key=lambda r: r["rating"], reverse=True)

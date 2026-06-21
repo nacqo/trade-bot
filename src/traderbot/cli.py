@@ -16,8 +16,6 @@ from traderbot.config import Config
 from traderbot.market_data.source import ReplaySource
 from traderbot.state.store import StateStore
 from traderbot.strategies.orb import ORBBot
-from traderbot.strategies.stat_arb import StatArbBot
-from traderbot.strategies.vwap_reversion import VWAPReversionBot
 from traderbot.types import Bar
 
 
@@ -51,13 +49,7 @@ def _demo_source() -> ReplaySource:
 
 
 def _build_bots(symbols: list[str]) -> list:
-    bots = [
-        ORBBot("orb", symbols, opening_minutes=15),
-        VWAPReversionBot("vwap", symbols, bb_period=20),
-    ]
-    if len(symbols) >= 2:
-        bots.insert(0, StatArbBot("statarb", [(symbols[0], symbols[1])], lookback=60))
-    return bots
+    return [ORBBot("orb", symbols, opening_minutes=15)]
 
 
 def cmd_backtest(args) -> int:
@@ -80,10 +72,7 @@ def cmd_backtest(args) -> int:
         cfg.allocator.min_obs = 3
         cfg.allocator.rebalance_minutes = 1
         source = _demo_source()
-        bots = [
-            ORBBot("orb", ["AAA", "BBB"], opening_minutes=5, atr_period=5),
-            VWAPReversionBot("vwap", ["AAA", "BBB"], bb_period=10),
-        ]
+        bots = [ORBBot("orb", ["AAA", "BBB"], opening_minutes=5, atr_period=5)]
         print("Synthetic demo backtest (pass --symbols + ALPACA creds for real data).")
 
     result = asyncio.run(run_backtest(cfg, source, bots))

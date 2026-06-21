@@ -10,8 +10,6 @@ from traderbot.config import Config
 from traderbot.execution.recovery import reconcile
 from traderbot.market_data.source import ReplaySource
 from traderbot.strategies.orb import ORBBot
-from traderbot.strategies.stat_arb import StatArbBot
-from traderbot.strategies.vwap_reversion import VWAPReversionBot
 from traderbot.types import Bar
 
 T0 = datetime(2026, 6, 20, 13, 30, tzinfo=timezone.utc)
@@ -35,11 +33,7 @@ async def test_v1_acceptance_gates():
     cfg = Config.default()
     cfg.allocator.min_obs = 3
     cfg.allocator.rebalance_minutes = 1
-    bots = [
-        StatArbBot("statarb", [("AAA", "BBB")], z_in=1.5, z_stop=6.0, lookback=20),
-        ORBBot("orb", ["AAA", "BBB"], opening_minutes=5, atr_period=5),
-        VWAPReversionBot("vwap", ["AAA", "BBB"], bb_period=10),
-    ]
+    bots = [ORBBot("orb", ["AAA", "BBB"], opening_minutes=5, atr_period=5)]
 
     result = await run_backtest(cfg, _fixture(), bots)
 
