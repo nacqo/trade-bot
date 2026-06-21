@@ -15,15 +15,20 @@ architecture flips to live with a config change.
 
 ## What it does
 
-**Five bots** (four active in v1, one dormant):
+The deployable product is a **blended daily-factor core** — three validated, decorrelated edges run
+through one meta-allocator, rebalanced once per trading day (`traderbot core`):
 
-1. **Statistical arbitrage (pairs)** — market-neutral. Finds cointegrated pairs (statsmodels
-   Engle–Granger gate), trades the z-score of the spread, mean-reverting.
-2. **Opening Range Breakout (ORB)** — intraday momentum off the session's opening range.
-3. **VWAP / Bollinger reversion** — fades stretched moves back toward VWAP.
-4. **Order-flow imbalance** — microstructure signal from top-of-book size imbalance + trade flow.
-5. **"General trading" (ICT)** — *dormant*. Futures-exclusive (MES/MNQ); activates only once a
-   futures broker is wired (a later phase). Ships registered but inactive (zero allocation).
+1. **Cross-sectional momentum** — long recent winners / short losers across large-caps (vol-scaled
+   12-1). Sharpe ≈ +0.9.
+2. **Residual (idiosyncratic) momentum** — momentum on *market-residual* returns; market-neutral,
+   the highest-rated single edge. Sharpe ≈ +1.0.
+3. **Time-series trend** — managed-futures-style own-asset trend across a diversified ETF basket
+   (equities / bonds / gold / commodities); the crisis-hedge diversifier.
+
+Blended they reach **Sharpe ≈ +0.8 at < 7% drawdown** — lower drawdown than any single edge
+(diversification). The earlier intraday strategies (stat-arb, ORB, VWAP, order-flow) were researched
+and dropped: their per-trade edge is smaller than retail transaction costs. The lesson — **edge must
+beat cost → low frequency wins** (`docs/superpowers/BACKTEST_FINDINGS.md`).
 
 **The meta-allocator** scores each bot on rolling **risk-adjusted** PnL (EWMA Sharpe-like, drawdown
 penalized), then sets two things per bot via a softmax-with-temperature (one knob spanning
@@ -76,25 +81,36 @@ equal-weight** comparison — the key question of whether the allocator adds val
 
 ### Real data & paper trading (needs an Alpaca key)
 
+Put your keys in a gitignored `.env` (auto-loaded) or export them:
+
 ```bash
-export ALPACA_API_KEY=your_key
-export ALPACA_SECRET_KEY=your_secret
+export ALPACA_API_KEY=your_paper_key
+export ALPACA_SECRET_KEY=your_paper_secret
 
-# real historical backtest (corporate-action-adjusted bars):
-traderbot backtest --symbols KO,PEP --start 2025-01-02 --end 2025-03-01
+# THE PRODUCT — blended daily-factor core, one rebalance/day (run via cron after the close):
+traderbot core               # paper account (default)
+traderbot core --live        # LIVE account, conservative sizing (deploy 0.6, leverage 1.2)
 
-# connect the paper account (prints equity / buying power / positions):
-traderbot paper
+# monitor the account (equity / gross / net / positions + alerts):
+traderbot monitor            # add --live for the live account
 
-# start the live paper loop on a watchlist:
-traderbot paper --symbols KO,PEP
+# individual factor rebalances (for research):
+traderbot momentum           # cross-sectional momentum
+traderbot residmom           # residual momentum
+traderbot trend              # time-series trend (ETF basket)
 
-# inspect recorded allocations / fills from a run:
+# cancel all open orders / inspect a run:
+traderbot cancel
 traderbot status --db traderbot.sqlite
+
+# real historical backtest + rank/rate every strategy:
+traderbot backtest --symbols KO,PEP --start 2025-01-02 --end 2025-03-01
+python scripts/evaluate.py   # the `evaluation` skill: ranking + ratings + 2-month sim
 ```
 
-Use **paper** keys first (Alpaca gives separate paper credentials). The first two symbols form the
-stat-arb pair; all symbols feed the momentum/reversion bots.
+Use **paper** keys first (Alpaca gives separate paper credentials). Start with a paper soak
+(`traderbot core` daily) before going `--live` — see the go-live plan in
+[`docs/superpowers/GO_LIVE.md`](docs/superpowers/GO_LIVE.md).
 
 ---
 
@@ -127,31 +143,22 @@ allocator (`allocator/`) sets capital + aggressiveness → risk admission (`risk
 
 ## Status
 
-v1 is complete on branch `build/v1` (99 tests passing): four active bots, the meta-allocator, the
-full risk overlay, honest volume-capped fills, the backtest + out-of-sample harness, real Alpaca
-historical backtest, and a live streaming loop.
+On branch `build/v1`, **99 tests passing**. The engine, meta-allocator, full risk overlay, honest
+volume-capped fills, backtest + OOS harness, real Alpaca data, and the live runners are complete.
 
-**Backtested on real data** (≈3 months, 2 stat-arb pairs, 102k 1-minute bars). **Verdict: the
-system is sound — not a profit engine.** Risk controls held in every regime (drawdown 2–4%, never
-breached; leverage capped; stops enforced), the allocator behaves correctly (defaults to
-≈equal-weight under noise, differentiates when a real performer emerges). But the **baseline
-strategies show no reliable edge** — a single-pair positive result did not survive a second pair —
-and tuning them to look profitable would be overfitting. **Do not deploy expecting profit.**
+**Research journey (honest):** many strategies were built and rigorously backtested. The intraday
+ones (stat-arb, ORB, VWAP, order-flow) have **no retail edge** — per-trade edge < transaction cost —
+and were dropped. Cross-sectional research found the real, OOS-stable edges: **momentum**, **residual
+momentum**, and **time-series trend**. Blended through one allocator (`traderbot core`): **Sharpe
+≈ +0.8 at < 7% drawdown**, market-neutral-ish, low turnover. Write-up:
+[`BACKTEST_FINDINGS.md`](docs/superpowers/BACKTEST_FINDINGS.md). Re-rank anytime with the `evaluation`
+skill (`python scripts/evaluate.py`).
 
-**Signal research then found a real edge.** Cross-sectional research (44 names, daily, 5 years)
-showed reversal and low-vol fail out-of-sample, but **vol-scaled 12-1 momentum** is significant
-(IC t≈4.3) and OOS-stable. It's implemented as `CrossSectionalMomentumBot` and captures **daily
-Sharpe ≈ +0.55** through the full system (stops/sizing/risk/costs), turnover 4×, drawdown 1.3%. It's
-a **daily** factor (run on daily bars). Full write-up + harness (`scripts/signals.py`):
-[`docs/superpowers/BACKTEST_FINDINGS.md`](docs/superpowers/BACKTEST_FINDINGS.md).
+**Path to live capital:** paper-soak → small live → scale, with readiness gates —
+[`GO_LIVE.md`](docs/superpowers/GO_LIVE.md). Honest expectation: ~8–12%/yr at < 7% drawdown *if the
+edges hold* — steady and diversified, not a moonshot.
 
-**Next — research, not more backtest tuning:** better signals/strategies; a paper soak (validates
-live execution + the order-flow bot, which needs quote data); walk-forward across many names/years
-before trusting any allocator edge. Deferred by design: futures + activating bot 5 (Phase F),
-dynamic market-impact slippage, confidence-gated minimum order sizing.
-
-Deeper docs: `docs/superpowers/HANDOFF.md` (state + decisions + how-to), the design spec and
-pre-mortem in `docs/superpowers/specs/`, and the implementation plan in `docs/superpowers/plans/`.
+Deeper docs: `docs/superpowers/` (HANDOFF, specs, pre-mortem, plan, findings, go-live).
 
 ---
 

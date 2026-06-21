@@ -58,3 +58,5 @@ def test_paper_without_creds_returns_nonzero(capsys, monkeypatch):
     monkeypatch.delenv("ALPACA_API_KEY", raising=False)
     monkeypatch.delenv("ALPACA_SECRET_KEY", raising=False)
     assert main(["paper"]) == 2
+    assert main(["monitor"]) == 2
+    assert main(["core"]) == 2

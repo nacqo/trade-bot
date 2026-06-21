@@ -189,17 +189,48 @@ def cmd_core(args) -> int:
     from traderbot.core import CORE_EQUITIES, CORE_ETFS, core_rebalance
     from traderbot.integrations.alpaca import build_alpaca_broker, fetch_historical_bars
 
-    broker = build_alpaca_broker(key, secret, paper=True)
+    paper = not getattr(args, "live", False)
+    broker = build_alpaca_broker(key, secret, paper=paper)
     client = StockHistoricalDataClient(key, secret)
     end = datetime.now(timezone.utc)
     bars = fetch_historical_bars(client, CORE_EQUITIES + CORE_ETFS, end - timedelta(days=450),
                                  end, timeframe=TimeFrame.Day)
     history = sorted((b for bl in bars.values() for b in bl), key=lambda b: b.ts)
-    submitted = _asyncio.run(core_rebalance(broker, history, broker.equity()))
-    print(f"Blended CORE rebalance (momentum + residmom + trend): {len(submitted)} orders to paper.")
+    deploy, lev = (1.0, 1.5) if paper else (0.6, 1.2)   # conservative sizing on the live account
+    submitted = _asyncio.run(core_rebalance(broker, history, broker.equity(), deploy, lev))
+    mode = "PAPER" if paper else "LIVE"
+    print(f"Blended CORE rebalance [{mode}] (momentum + residmom + trend): {len(submitted)} orders.")
+    if not paper:
+        print("  LIVE: conservative sizing (deploy_fraction 0.6, leverage 1.2).")
     for sym, delta in submitted:
         print(f"  {sym}: {delta:+.0f}")
-    print("Run once per trading day (cron after the close). This is the blended live core.")
+    print("Run once per trading day (cron after the close).")
+    return 0
+
+
+def cmd_monitor(args) -> int:
+    key, secret = os.getenv("ALPACA_API_KEY"), os.getenv("ALPACA_SECRET_KEY")
+    if not (key and secret):
+        print("monitor needs ALPACA_API_KEY and ALPACA_SECRET_KEY env vars.")
+        return 2
+    from traderbot.integrations.alpaca import build_alpaca_broker
+
+    paper = not getattr(args, "live", False)
+    broker = build_alpaca_broker(key, secret, paper=paper)
+    eq, bp, gross = broker.equity(), broker.buying_power(), broker.gross()
+    pos = broker.positions()
+    net = sum(p.qty * p.avg_price for p in pos.values())
+    print(f"=== monitor [{'PAPER' if paper else 'LIVE'}] ===")
+    print(f"equity {eq:,.2f}   buying_power {bp:,.2f}   gross {gross:,.2f} ({gross / eq:.2f}x)   "
+          f"net {net:,.2f} ({net / eq:+.2f}x)   positions {len(pos)}")
+    alerts = []
+    if eq > 0 and gross > 1.5 * eq + 1:
+        alerts.append("gross exceeds 1.5x equity")
+    if eq > 0 and abs(net) > 0.4 * eq:
+        alerts.append("net exposure exceeds 0.4x equity (should be ~neutral)")
+    print("ALERTS: " + ("; ".join(alerts) if alerts else "none"))
+    for s, p in sorted(pos.items()):
+        print(f"  {s:6} {p.qty:+9.0f} @ {p.avg_price:.2f}")
     return 0
 
 
@@ -308,7 +339,12 @@ def main(argv: list[str] | None = None) -> int:
     p_trend = sub.add_parser("trend")
     p_trend.add_argument("--symbols", default=None, help="comma-separated ETF/asset universe")
     p_trend.set_defaults(func=cmd_trend)
-    sub.add_parser("core").set_defaults(func=cmd_core)
+    p_core = sub.add_parser("core")
+    p_core.add_argument("--live", action="store_true", help="trade the LIVE account (default: paper)")
+    p_core.set_defaults(func=cmd_core)
+    p_monitor = sub.add_parser("monitor")
+    p_monitor.add_argument("--live", action="store_true", help="inspect the LIVE account (default: paper)")
+    p_monitor.set_defaults(func=cmd_monitor)
     sub.add_parser("cancel").set_defaults(func=cmd_cancel)
     args = parser.parse_args(argv)
     return args.func(args)

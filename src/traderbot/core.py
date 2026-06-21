@@ -33,10 +33,15 @@ def build_core_bots():
     ]
 
 
-async def core_rebalance(real_broker, history: list[Bar], equity: float) -> list[tuple]:
+async def core_rebalance(
+    real_broker, history: list[Bar], equity: float,
+    deploy_fraction: float = 1.0, max_gross_leverage: float = 1.5,
+) -> list[tuple]:
     cfg = Config.default()
     cfg.starting_equity = equity
     cfg.allocator.min_obs = 20
+    cfg.data.deploy_fraction = deploy_fraction        # < 1.0 holds a cash buffer (live: conservative)
+    cfg.risk.max_gross_leverage = max_gross_leverage
     result = await run_backtest(cfg, ReplaySource({_grp: [b for b in history if b.symbol == _grp]
                                                    for _grp in {b.symbol for b in history}}),
                                 build_core_bots())
