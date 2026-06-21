@@ -32,6 +32,7 @@ from traderbot.integrations.alpaca import fetch_historical_bars  # noqa: E402
 from traderbot.market_data.source import ReplaySource  # noqa: E402
 from traderbot.strategies.orb import ORBBot  # noqa: E402
 from traderbot.strategies.momentum import CrossSectionalMomentumBot  # noqa: E402
+from traderbot.strategies.residual_momentum import ResidualMomentumBot  # noqa: E402
 from traderbot.strategies.stat_arb import StatArbBot  # noqa: E402
 from traderbot.strategies.trend import TimeSeriesMomentumBot  # noqa: E402
 from traderbot.strategies.vwap_reversion import VWAPReversionBot  # noqa: E402
@@ -94,6 +95,7 @@ async def evaluate(name, bot, bars, is_daily):
 
 GUIDANCE = {
     "momentum": "KEEP (core). Improve: widen universe to 100-500 names, sector-neutralize, blend 6-1+12-1.",
+    "residmom": "KEEP (best risk-adj momentum; market-neutral). Improve: sector-neutralize, blend with plain momentum.",
     "trend": "KEEP (diversifier). Improve: add asset classes, blend fast+slow trend, target constant vol.",
     "stat-arb": "KEEP THIN. Improve: trade only strongly-cointegrated pairs, size for spread>cost, longer holds.",
     "orb": "FIX or drop. Improve: switch to a HIGH-VOL universe (NVDA/TSLA/AMD) + 30-60min holds; edgeless on low-vol.",
@@ -108,6 +110,7 @@ async def main():
 
     configs = [
         ("momentum", CrossSectionalMomentumBot("m", list(daily44.keys())), daily44, True),
+        ("residmom", ResidualMomentumBot("rm", list(daily44.keys())), daily44, True),
         ("trend", TimeSeriesMomentumBot("t", list(etf.keys())), etf, True),
         ("stat-arb", StatArbBot("s", [("KO", "PEP")], lookback=60), minute, False),
         ("orb", ORBBot("o", MIN4, opening_minutes=15), minute, False),

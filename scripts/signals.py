@@ -146,14 +146,17 @@ def main():
     rets = panel.pct_change()
     print(f"universe={panel.shape[1]} names  days={panel.shape[0]}  {START}..{END}")
 
+    # market + rolling beta (for betting-against-beta + residual momentum)
+    mkt = rets.mean(axis=1)
+    var_mkt = mkt.rolling(252).var()
+    beta = rets.rolling(252).cov(mkt).div(var_mkt, axis=0)
+    resid = rets.sub(beta.mul(mkt, axis=0))
+
     signals = {
-        "rev_1d": -rets,
-        "rev_5d": -panel.pct_change(5),
-        "mom_3_1": (panel.shift(21) / panel.shift(63) - 1),
-        "mom_6_1": (panel.shift(21) / panel.shift(126) - 1),
-        "mom_12_1": (panel.shift(21) / panel.shift(252) - 1),
         "mom_12_1_volscaled": (panel.shift(21) / panel.shift(252) - 1) / (rets.rolling(126).std() + 1e-9),
-        "lowvol_21d": -rets.rolling(21).std(),
+        "bab(-beta)": -beta,                                   # long low-beta / short high-beta
+        "resid_mom": resid.rolling(231).sum().shift(21),       # idiosyncratic 12-1 momentum
+        "lt_reversal": -(panel.shift(252) / panel.shift(252 * 4) - 1),  # 4y long-term reversal
     }
     print("signal          horizon   IC      IR      t      IS       OOS")
     for name, sig in signals.items():
