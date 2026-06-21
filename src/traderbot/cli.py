@@ -174,6 +174,35 @@ def cmd_momentum(args) -> int:
     return 0
 
 
+def cmd_core(args) -> int:
+    import asyncio as _asyncio
+
+    key, secret = os.getenv("ALPACA_API_KEY"), os.getenv("ALPACA_SECRET_KEY")
+    if not (key and secret):
+        print("core needs ALPACA_API_KEY and ALPACA_SECRET_KEY env vars.")
+        return 2
+    from datetime import datetime, timedelta, timezone
+
+    from alpaca.data.historical import StockHistoricalDataClient
+    from alpaca.data.timeframe import TimeFrame
+
+    from traderbot.core import CORE_EQUITIES, CORE_ETFS, core_rebalance
+    from traderbot.integrations.alpaca import build_alpaca_broker, fetch_historical_bars
+
+    broker = build_alpaca_broker(key, secret, paper=True)
+    client = StockHistoricalDataClient(key, secret)
+    end = datetime.now(timezone.utc)
+    bars = fetch_historical_bars(client, CORE_EQUITIES + CORE_ETFS, end - timedelta(days=450),
+                                 end, timeframe=TimeFrame.Day)
+    history = sorted((b for bl in bars.values() for b in bl), key=lambda b: b.ts)
+    submitted = _asyncio.run(core_rebalance(broker, history, broker.equity()))
+    print(f"Blended CORE rebalance (momentum + residmom + trend): {len(submitted)} orders to paper.")
+    for sym, delta in submitted:
+        print(f"  {sym}: {delta:+.0f}")
+    print("Run once per trading day (cron after the close). This is the blended live core.")
+    return 0
+
+
 def cmd_residmom(args) -> int:
     key, secret = os.getenv("ALPACA_API_KEY"), os.getenv("ALPACA_SECRET_KEY")
     if not (key and secret):
@@ -279,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
     p_trend = sub.add_parser("trend")
     p_trend.add_argument("--symbols", default=None, help="comma-separated ETF/asset universe")
     p_trend.set_defaults(func=cmd_trend)
+    sub.add_parser("core").set_defaults(func=cmd_core)
     sub.add_parser("cancel").set_defaults(func=cmd_cancel)
     args = parser.parse_args(argv)
     return args.func(args)
